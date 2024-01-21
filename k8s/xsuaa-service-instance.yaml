@@ -1,0 +1,35 @@
+apiVersion: services.cloud.sap.com/v1
+kind: ServiceInstance
+metadata:
+  name: my-xsuaa
+spec:
+  serviceOfferingName: xsuaa
+  servicePlanName: application
+  parameters:
+    xsappname: my-approuter
+    tenant-mode: dedicated
+    scopes:
+      - name: $XSAPPNAME.User
+        description: "user role"
+    role-templates:
+      - name: User
+        description: "access apps exposed via app router"
+        scope-references:
+          - $XSAPPNAME.User
+    role-collections:
+      - name: "kyma-my-approuter-users"
+        description: "access apps exposed via app router"
+        role-template-references:
+          - $XSAPPNAME.User
+    oauth2-configuration:
+      redirect-uris:
+        # callback
+        - "https://my-approuter.c-290ae5b.kyma.shoot.live.k8s-hana.ondemand.com/**"
+        - "http://localhost:5000/**"
+---
+apiVersion: services.cloud.sap.com/v1
+kind: ServiceBinding
+metadata:
+  name: my-xsuaa-binding
+spec:
+  serviceInstanceName: my-xsuaa

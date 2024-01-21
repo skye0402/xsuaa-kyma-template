@@ -1,0 +1,81 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: my-approuter
+spec:
+  host: my-approuter
+  trafficPolicy:
+    loadBalancer:
+      consistentHash:
+        httpCookie:
+          name: JSESSIONID
+          path: /
+          ttl: 0s
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: my-approuter
+  name: my-approuter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-approuter
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: my-approuter
+    spec:
+      volumes:
+      - name: xs-app
+        configMap:
+          name: xs-app
+      - name: my-xsuaa-binding
+        secret:
+          secretName: my-xsuaa-binding
+      containers:
+      - image: sapse/approuter:15.0.0
+        name: my-approuter
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        resources: {}
+        volumeMounts:
+        - name: xs-app
+          mountPath: /app/xs-app.json
+          subPath: xs-app.json
+          readOnly: true
+        - name: my-xsuaa-binding
+          mountPath: /etc/secrets/sapcp/xsuaa/my-xsuaa
+          readOnly: true
+        env:
+        - name: destinations
+          valueFrom:
+            configMapKeyRef:
+              name: destinations
+              key: destinations
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: my-approuter
+  name: my-approuter
+spec:
+  ports:
+  - port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: my-approuter
+status:
+  loadBalancer: {}
+
+

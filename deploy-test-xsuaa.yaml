@@ -1,0 +1,234 @@
+ apiVersion: v1
+ kind: Namespace
+ metadata: 
+  name: gunter-xsuaa2
+  labels:
+    istio-injection: enabled
+---
+apiVersion: services.cloud.sap.com/v1alpha1
+kind: ServiceInstance
+metadata:
+  name: gunter-xsuaa-service-instance
+  namespace: gunter-xsuaa2
+spec:
+  serviceOfferingName: xsuaa
+  servicePlanName: application
+  parameters:
+    xsappname: gunter-xsuaa-app
+    tenant-mode: dedicated  # define the application provider tenant as a shared tenant
+    description: Security profile of called application
+    scopes:
+    - name: $XSAPPNAME.Callback
+      description: With this scope set, the callbacks for subscribe, unsubscribe and getDependencies can be called.
+      grant-as-authority-to-apps:
+      - $XSAPPNAME(application,sap-provisioning,tenant-onboarding)  # provide access to the SAP SaaS Provisioning service SAP Authorization and Trust Management service (technical name: saas-registry) for calling callbacks and getting the dependencies API by granting scopes:  
+    oauth2-configuration:
+      redirect-uris:
+        - "https://gun-artest.c-290ae5b.kyma.shoot.live.k8s-hana.ondemand.com/**"
+        - "http://localhost:5000/**"
+---
+apiVersion: services.cloud.sap.com/v1alpha1
+kind: ServiceBinding
+metadata:
+  name: gunter-xsuaa-service-binding
+  namespace: gunter-xsuaa2
+spec:
+  serviceInstanceName: gunter-xsuaa-service-instance
+  secretName: gunter-xsuaa-service-binding-secret
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gunter-xsuaa-sa
+  namespace: gunter-xsuaa2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gunter-gradio-service
+  namespace: gunter-xsuaa2
+  labels:
+    app: gunter-gradio-app
+    service: gunter-gradio-service
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 80
+  selector:
+    app: gunter-gradio-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gunter-gradio-app
+  namespace: gunter-xsuaa2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gunter-gradio-app
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: gunter-gradio-app
+        version: v1
+    spec:
+      serviceAccountName: gunter-xsuaa-sa
+      containers:
+      - image: gunter04/gradioxsuaa:0.1
+        imagePullPolicy: Always
+        name: gunter-gradio-container
+        ports:
+        - containerPort: 80
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: gunter-xsuaa-destrule
+  namespace: gunter-xsuaa2
+spec:
+  host: gun-artest
+  trafficPolicy:
+    loadBalancer:
+      consistentHash:
+        httpCookie:
+          name: JSESSIONID
+          path: /
+          ttl: 0s
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gunter-xsuaa-approuter-app
+  name: gunter-xsuaa-approuter-app
+  namespace: gunter-xsuaa2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gunter-xsuaa-approuter-app
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: gunter-xsuaa-approuter-app
+    spec:
+      volumes:
+      - name: xs-app
+        configMap:
+          name: xs-app-configmap
+      - name: gunter-xsuaa-service-binding
+        secret:
+          secretName: gunter-xsuaa-service-binding-secret
+      containers:
+      - image: sapse/approuter:15.0.0
+        name: gunter-xsuaa-approuter-container
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        resources: {}
+        volumeMounts:
+        - name: xs-app
+          mountPath: /app/xs-app.json
+          subPath: xs-app.json
+          readOnly: true
+        - name: gunter-xsuaa-service-binding
+          mountPath: /etc/secrets/sapcp/xsuaa/gunter-xsuaa-service-instance
+          readOnly: true
+        env:
+        - name: destinations
+          valueFrom:
+            configMapKeyRef:
+              name: destinations-configmap
+              key: destinations
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gunter-xsuaa-approuter-app
+  name: gunter-xsuaa-approuter-service
+  namespace: gunter-xsuaa2 
+spec:
+  ports:
+  - port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: gunter-xsuaa-approuter-app
+status:
+  loadBalancer: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: destinations-configmap
+  namespace: gunter-xsuaa2
+data:
+  destinations: >-
+    [
+        {
+          "name": "gradio-app",
+          "url": "http://gunter-gradio-service:8000",
+          "forwardAuthToken": true
+        }
+    ]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xs-app-configmap
+  namespace: gunter-xsuaa2
+data:
+  xs-app.json: |-
+    {
+        "authenticationMethod": "route",
+        "sessionTimeout": 10,
+        "login" : {
+          "callbackEndpoint": "/sap/com/gunter-gradio-service"
+        },
+        "routes": [
+            {
+                "source": "^/sap/com/gunter-gradio-service/(.*)$",
+                "destination": "gradio-app",
+                "target": "$1",
+                "authenticationType": "xsuaa",
+                "csrfProtection": false
+            },
+            {
+                "source": "^/(.*)$",
+                "destination": "gradio-app",
+                "target": "$1",
+                "authenticationType": "xsuaa",
+                "csrfProtection": false
+            }
+        ]
+    }
+---
+apiVersion: gateway.kyma-project.io/v1beta1
+kind: APIRule
+metadata:
+  labels:
+    app: gunter-xsuaa-approuter-app
+  name: gunter-xsuaa-approuter-apirule
+  namespace: gunter-xsuaa2
+spec:
+  gateway: kyma-gateway.kyma-system.svc.cluster.local
+  host: gun-artest
+  rules:
+    - path: /.*
+      methods: ["GET", "POST", "PUT", "DELETE"]
+      service:
+        name: gunter-xsuaa-approuter-service
+        port: 5000
+      accessStrategies:
+        - handler: allow
