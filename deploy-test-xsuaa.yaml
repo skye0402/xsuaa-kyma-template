@@ -18,10 +18,32 @@ spec:
     tenant-mode: dedicated  # define the application provider tenant as a shared tenant
     description: Security profile of called application
     scopes:
-    - name: $XSAPPNAME.Callback
-      description: With this scope set, the callbacks for subscribe, unsubscribe and getDependencies can be called.
-      grant-as-authority-to-apps:
-      - $XSAPPNAME(application,sap-provisioning,tenant-onboarding)  # provide access to the SAP SaaS Provisioning service SAP Authorization and Trust Management service (technical name: saas-registry) for calling callbacks and getting the dependencies API by granting scopes:  
+    - name: $XSAPPNAME.Restricted
+      description: Restricted Access
+    - name: $XSAPPNAME.Full
+      description: Full Access
+    attributes:
+    - name: Models
+      description: Generative AI Models
+      valueType: string
+    - name: Features
+      description: Features of Application
+      valueType: string
+    role-templates:
+    - name: General
+      description: General User
+      scope-references:
+      - $XSAPPNAME.Restricted
+      attribute-references:
+      - Models
+      - Features
+    - name: Internal
+      description: Internal User
+      scope-references:
+      - $XSAPPNAME.Full
+      attribute-references:
+      - Models
+      - Features
     oauth2-configuration:
       redirect-uris:
         - "https://gun-artest.c-290ae5b.kyma.shoot.live.k8s-hana.ondemand.com/**"
@@ -129,7 +151,7 @@ spec:
         secret:
           secretName: gunter-xsuaa-service-binding-secret
       containers:
-      - image: sapse/approuter:15.0.0
+      - image: sapse/approuter:16.0.1
         name: gunter-xsuaa-approuter-container
         imagePullPolicy: Always
         ports:
@@ -212,6 +234,51 @@ data:
                 "csrfProtection": false
             }
         ]
+    }
+  xs-security.json: |-
+    { 
+      "xsappname": "gunter-xsuaa-app",
+      "tenant-mode": "dedicated",
+      "scopes": [
+          {
+              "name": "$XSAPPNAME.Restricted",
+              "description": "Restricted Access"
+          }, 
+          {
+              "name": "$XSAPPNAME.Full",
+              "description": "Full Access" 
+          }
+      ], 
+      "attributes": [
+          { 
+              "name": "Models",
+              "description": "Generative AI Models",
+              "valueType": "string" 
+          },
+          {
+              "name": "Features",
+              "description": "Features of Application",
+              "valueType": "string" 
+          }
+      ],
+      "role-templates": [
+          { 
+              "name"                : "General", 
+              "description"         : "General User", 
+              "scope-references"    : [
+                  "$XSAPPNAME.Restricted"
+              ], 
+              "attribute-references": ["Models", "Features"]  
+          },
+          { 
+              "name"                : "Internal", 
+              "description"         : "Internal User", 
+              "scope-references"    : [
+                  "$XSAPPNAME.Full"
+              ], 
+              "attribute-references": ["Models", "Features"]  
+          }
+      ]
     }
 ---
 apiVersion: gateway.kyma-project.io/v1beta1
