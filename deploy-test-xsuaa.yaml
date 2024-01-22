@@ -107,6 +107,29 @@ spec:
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        volumeMounts:
+        - name: gunter-gradio-volume
+          mountPath: /code/db  
+      volumes:
+      - name: gunter-gradio-volume
+        persistentVolumeClaim:
+          claimName: gunter-gradio-pvc
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: gunter-gradio-pvc
+  namespace: gunter-xsuaa2
+  labels:
+    app: gunter-gradio-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: default
+  volumeMode: Filesystem  
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule

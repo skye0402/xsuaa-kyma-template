@@ -6,6 +6,7 @@ WORKDIR /code
 
 # install dependencies
 RUN apt update
+RUN apt install -y sqlite3
 RUN pip install pip --upgrade
 
 # copy the dependencies file to the working directory
@@ -14,6 +15,7 @@ RUN pip install -r "requirements.txt"
 
 # Copy local libraries
 COPY test-gradio.py /code
+COPY img/ /code/img
 
 # expose a port for Gradio
 EXPOSE 80
