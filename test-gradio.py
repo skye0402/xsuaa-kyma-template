@@ -5,8 +5,8 @@ import logging, os, json
 import sqlite3
 from datetime import datetime
 
-DBPATH_LOG = os.getenv("LOGIN_DB", "login_info.db") # User login timestamps
-DBPATH_PRF = os.getenv("PREFR_DB", "user_prefr.db") # User preferences]
+DBPATH_LOG = os.getenv("LOGIN_DB", "./db/login_info.db") # User login timestamps
+DBPATH_PRF = os.getenv("PREFR_DB", "./db/user_prefr.db") # User preferences]
 DATABASES = {}
 
 block_css = """
@@ -29,6 +29,69 @@ footer {
 logo_markdown = """### APJ Architecture & Platform Advisory
 ![Platform & Integration Labs](file/img/blue.svg)"""
 
+# Custom HTML for the carousel
+def get_carousel():
+    carousel_html = """
+    <!-- MDB JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/4.3.0/mdb.min.js"></script>
+    <!-- Carousel wrapper -->
+    <div id="carouselMaterialStyle" class="carousel slide carousel-fade" data-mdb-ride="carousel" data-mdb-carousel-init>
+    <!-- Indicators -->
+    <div class="carousel-indicators">
+        <button type="button" data-mdb-target="#carouselMaterialStyle" data-mdb-slide-to="0" class="active" aria-current="true"
+        aria-label="Slide 1"></button>
+        <button type="button" data-mdb-target="#carouselMaterialStyle" data-mdb-slide-to="1" aria-label="Slide 2"></button>
+        <button type="button" data-mdb-target="#carouselMaterialStyle" data-mdb-slide-to="2" aria-label="Slide 3"></button>
+    </div>
+
+    <!-- Inner -->
+    <div class="carousel-inner rounded-5 shadow-4-strong">
+        <!-- Single item -->
+        <div class="carousel-item active">
+        <img src="file/img/pic1.jpg" class="d-block w-100"
+            alt="Sunset Over the City" />
+        <div class="carousel-caption d-none d-md-block">
+            <h5>First slide label</h5>
+            <p>Nulla vitae elit libero, a pharetra augue mollis interdum.</p>
+        </div>
+        </div>
+
+        <!-- Single item -->
+        <div class="carousel-item">
+        <img src="file/img/pic2.jpg" class="d-block w-100"
+            alt="Canyon at Nigh" />
+        <div class="carousel-caption d-none d-md-block">
+            <h5>Second slide label</h5>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+        </div>
+        </div>
+
+        <!-- Single item -->
+        <div class="carousel-item">
+        <img src="file/img/pic3.jpg" class="d-block w-100"
+            alt="Cliff Above a Stormy Sea" />
+        <div class="carousel-caption d-none d-md-block">
+            <h5>Third slide label</h5>
+            <p>Praesent commodo cursus magna, vel scelerisque nisl consectetur.</p>
+        </div>
+        </div>
+    </div>
+    <!-- Inner -->
+
+    <!-- Controls -->
+    <button class="carousel-control-prev" type="button" data-mdb-target="#carouselMaterialStyle" data-mdb-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-mdb-target="#carouselMaterialStyle" data-mdb-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+    </div>
+    <!-- Carousel wrapper -->
+    """
+    return carousel_html #f"""<iframe style="width: 100%; height: 480px" srcdoc='{carousel_html}'></iframe>"""
+
 def decode_jwt(jwt_str: str)->dict:
     token = jwt_str.split(" ")[1]
     try:
@@ -40,25 +103,42 @@ def decode_jwt(jwt_str: str)->dict:
     return decoded_payload
 
 def set_user_data(state: gr.State, request: gr.Request):
+    can_see_stats = False
     jwt_encoded = request.headers.get("authorization", None)
+    logging.debug(f'JWT:\n{jwt_encoded}\n')
+    # jwt_encoded = "Bearer eyJhbGciOiJSUzI1NiIsImprdSI6Imh0dHBzOi8vZGwtYXBqLmF1dGhlbnRpY2F0aW9uLmFwMjEuaGFuYS5vbmRlbWFuZC5jb20vdG9rZW5fa2V5cyIsImtpZCI6ImRlZmF1bHQtand0LWtleS0tOTE0MTIzNTc0IiwidHlwIjoiSldUIiwiamlkIjogImNFNTFrVjdidSswekVDOFJyeUZTMWZ0ckt5Y29QUXc2NDNmRWxHM2NBUjg9In0.eyJqdGkiOiIzMWUwMzA1NTk4NjM0NzcwOTEzMjIxYmUzMDFhZGVlMiIsImV4dF9hdHRyIjp7ImVuaGFuY2VyIjoiWFNVQUEiLCJzdWJhY2NvdW50aWQiOiJmZjE2Y2U0OS0wYWUxLTQ1ZjMtOWQwMy00ZDkwNThiMDIxNDYiLCJ6ZG4iOiJkbC1hcGoiLCJvaWRjSXNzdWVyIjoiaHR0cHM6Ly9hY2NvdW50cy5zYXAuY29tIn0sInhzLnN5c3RlbS5hdHRyaWJ1dGVzIjp7InhzLnJvbGVjb2xsZWN0aW9ucyI6WyJFbnRlcnByaXNlIE1lc3NhZ2luZyBBZG1pbmlzdHJhdG9yIiwiQXBwcm91dGVya3ltYSIsIkludGVybmFsIEdlbmVyYXRpdmUgQUkgUm9sZSIsIkVudGVycHJpc2UgTWVzc2FnaW5nIERldmVsb3BlciIsIlN1YmFjY291bnQgQWRtaW5pc3RyYXRvciIsIkVudGVycHJpc2UgTWVzc2FnaW5nIFN1YnNjcmlwdGlvbiBBZG1pbmlzdHJhdG9yIiwiQ29ubmVjdGl2aXR5IGFuZCBEZXN0aW5hdGlvbiBBZG1pbmlzdHJhdG9yIiwiRW50ZXJwcmlzZSBNZXNzYWdpbmcgRGlzcGxheSJdfSwiZ2l2ZW5fbmFtZSI6Ikd1bnRlciIsInhzLnVzZXIuYXR0cmlidXRlcyI6eyJGZWF0dXJlcyI6WyJzdGF0aXN0aWNzIl0sIk1vZGVscyI6WyIqIl19LCJmYW1pbHlfbmFtZSI6IkFsYnJlY2h0Iiwic3ViIjoiN2UwODFmMDgtN2UzOC00Mjc5LWIxMGQtZjQwMGU4YjNmZjJmIiwic2NvcGUiOlsiZ3VudGVyLXhzdWFhLWFwcCF0MTYxNC5GdWxsIiwib3BlbmlkIl0sImNsaWVudF9pZCI6InNiLWd1bnRlci14c3VhYS1hcHAhdDE2MTQiLCJjaWQiOiJzYi1ndW50ZXIteHN1YWEtYXBwIXQxNjE0IiwiYXpwIjoic2ItZ3VudGVyLXhzdWFhLWFwcCF0MTYxNCIsImdyYW50X3R5cGUiOiJhdXRob3JpemF0aW9uX2NvZGUiLCJ1c2VyX2lkIjoiN2UwODFmMDgtN2UzOC00Mjc5LWIxMGQtZjQwMGU4YjNmZjJmIiwib3JpZ2luIjoic2FwLmRlZmF1bHQiLCJ1c2VyX25hbWUiOiJndW50ZXIuYWxicmVjaHRAc2FwLmNvbSIsImVtYWlsIjoiZ3VudGVyLmFsYnJlY2h0QHNhcC5jb20iLCJhdXRoX3RpbWUiOjE3MDU4OTgwOTAsInJldl9zaWciOiIyZmE1YzVmNSIsImlhdCI6MTcwNTg5ODA5MSwiZXhwIjoxNzA1OTIxMjc2LCJpc3MiOiJodHRwczovL2RsLWFwai5hdXRoZW50aWNhdGlvbi5hcDIxLmhhbmEub25kZW1hbmQuY29tL29hdXRoL3Rva2VuIiwiemlkIjoiZmYxNmNlNDktMGFlMS00NWYzLTlkMDMtNGQ5MDU4YjAyMTQ2IiwiYXVkIjpbImd1bnRlci14c3VhYS1hcHAhdDE2MTQiLCJvcGVuaWQiLCJzYi1ndW50ZXIteHN1YWEtYXBwIXQxNjE0Il19.jEn6uFPVTpifoehPkpPsbjgCcr3624PGGAuUsTvDYIVpsr2Aumsu3X8RhtThTQk-QqDRNcj_sDx7QljCdI1fdGEtNDyCdAldWrVip_ciWMgUPs8n0wvt9z9hFLywX5erGjmMIyQBdH2K2kIY7pflw9HWbH7UdTdVAJQngGS1X9sLzgP0im_Mxa8yaCee_-F30jUk_nCkouOH-KeAZ1ex8LGt4bL3gr3zMY_H-ZkPJ31AX4vWvVCOl36yL6LJygCoe0mu2uFCQaVa6PsziRI20CGnxQzdURNEBBTa7ScVO2Mq_FafZmtF3OjxSQkRm_pzL7bTJRh_Rp_QhgXkwpsmxA"
     if jwt_encoded == None:
         state["jwt"] = None
         logging.info("Unauthorized call of application at start.")
         return [
             state,
             gr.update(visible=False),
-            gr.update(value="Unauthorized.")
+            gr.update(value="Unauthorized."),
+            gr.update(visible=can_see_stats)
         ]
     state["jwt"] = decode_jwt(jwt_encoded)
     logging.debug(f'JWT data:\n{state["jwt"]}')
     usr = state["jwt"]
+    usr_attr = usr.get("xs.user.attributes", None)
+    if usr_attr:
+        can_see_stats = has_access(usr_attr, "Features", "statistics")
+        logging.info(f'User {usr["user_name"]} has statistics access: {str(can_see_stats)}.')
     log_user_login(DATABASES["log"], usr["user_name"], usr["given_name"],usr["family_name"],usr["email"])
     logging.debug("Login data logged in DB")
     return [
         state,
         gr.update(visible=True),
-        gr.update(value=f'Welcome {state["jwt"]["given_name"]} {state["jwt"]["family_name"]}.')
+        gr.update(value=f'Welcome {state["jwt"]["given_name"]} {state["jwt"]["family_name"]}.'),
+        gr.update(visible=can_see_stats)
     ]
+    
+def has_access(user_attributes: dict, key: str, item: str) -> bool:
+    """ Check if the user has access to a specific feature or model. """
+    if key not in user_attributes:
+        return False  # The key does not exist in the user attributes.
+    if "*" in user_attributes[key]:
+        return True  # The user has access to all items under this key.          
+    return item in user_attributes[key]  # Check if the specific item is in the list.
 
 def create_test_view()->Blocks:
     """ Build the view with Gradio blocks """
@@ -77,7 +157,8 @@ def create_test_view()->Blocks:
                         placeholder="Enter text and press ENTER",
                         container=False
                     )
-                    logo_box = gr.Markdown(value=logo_markdown, elem_id="logo_box")                
+                    logo_box = gr.Markdown(value=logo_markdown, elem_id="logo_box")
+                    #carousel = gr.HTML(get_carousel())             
                 with gr.Column(scale=3, elem_id="column_right", visible=True) as column_right:
                     msg_box2 = gr.Textbox(
                         elem_id="msg_box",
@@ -85,7 +166,7 @@ def create_test_view()->Blocks:
                         placeholder="Enter text and press ENTER",
                         container=False
                     )
-        with gr.Tab(label="User Info", visible=True) as user_info_tab:
+        with gr.Tab(label="User Info", visible=False) as user_info_tab:
             login_count_df = gr.Dataframe(
                 headers=["Username", "Full name", "Email", "Login Count"],
                 datatype=["str", "str", "str", "number"],
@@ -93,7 +174,7 @@ def create_test_view()->Blocks:
                 col_count=(4, "fixed"),
             )
         user_info = gr.Markdown(value="Not logged in.", elem_id="user_info")
-        test_view.load(set_user_data, [state], [state, main_screen, user_info])
+        test_view.load(set_user_data, [state], [state, main_screen, user_info, user_info_tab])
         user_info_tab.select(set_df_data, [state], [login_count_df])
     return test_view
                 
@@ -172,7 +253,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     args = {}
     args["host"] = os.environ.get("HOSTNAME","0.0.0.0")
-    args["port"] = os.environ.get("HOSTPORT",80)
+    args["port"] = os.environ.get("HOSTPORT",51010)
     
     # Connect to database
     (conn_log, cursor_log), (conn_userpref, cursor_userpref) = connect_db()

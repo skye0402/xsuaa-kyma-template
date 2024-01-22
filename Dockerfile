@@ -18,7 +18,7 @@ COPY test-gradio.py /code
 COPY img/ /code/img
 
 # expose a port for Gradio
-EXPOSE 80
+EXPOSE 51010
 
 # command to run on container start
 CMD [ "python3", "test-gradio.py" ]
